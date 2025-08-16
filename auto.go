@@ -15,7 +15,7 @@ const TIME = time.Millisecond * 100
 func auto(pubChan chan<- string, action chan string) {
 	// WARN: For now auto works only with one screen
 	dir := path.Join(util.Conf.Sensor.Path, "in_illuminance_raw")
-	maxBrg := util.Conf.Screen[0].Max
+	maxBrg := util.Conf.Devices[0].Max
 	bounds := util.Conf.Sensor.Bounds
 	par := util.Conf.Sensor.Params
 	c := par.Convexity
@@ -63,7 +63,7 @@ func auto(pubChan chan<- string, action chan string) {
 			v := brightness(s, c, maxBrg, bounds)
 			val := strconv.Itoa(v)
 
-			if err := set(util.Conf.Screen[0], val); err != nil {
+			if err := set(util.Conf.Devices[0], val); err != nil {
 				log.Println("error setting brightness:", err)
 			}
 

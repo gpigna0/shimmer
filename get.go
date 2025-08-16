@@ -10,27 +10,34 @@ import (
 
 type Stats struct {
 	Device     string  `json:"device_name"`
+	Type       string  `json:"type"`
 	Path       string  `json:"path"`
 	Max        int     `json:"max_brigthness"`
 	Brightness float64 `json:"brightness"`
 	Auto       bool    `json:"auto"`
 }
 
-func get(screen util.Screen, humanReadable bool, precision int) (Stats, error) {
-	brg, err := util.ReadFloat64(screen.Path)
+func get(dev util.Device, humanReadable bool, precision int) (Stats, error) {
+	brg, err := util.ReadFloat64(dev.Path)
 	if err != nil {
 		return Stats{}, err
 	}
 	auto := util.CheckAuto()
 
 	if humanReadable {
-		brg = util.ToPercent(brg, screen.Max, precision)
+		brg = util.ToPercent(brg, dev.Max, precision)
+	}
+
+	typ := "screen"
+	if dev.Type == 1 {
+		typ = "led"
 	}
 
 	stats := Stats{
-		screen.Name,
-		screen.Path,
-		int(screen.Max),
+		dev.Name,
+		typ,
+		dev.Path,
+		int(dev.Max),
 		brg,
 		auto,
 	}

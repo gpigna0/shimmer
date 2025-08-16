@@ -1,6 +1,6 @@
 # shimmer
 
-A utility to automatically control your screen's brightness on Linux.
+A utility to automatically control your devices' brightness on Linux.
 _*shimmer*_ can also be used to control the brightness similarly to
 [brightnessctl](https://github.com/Hummer12007/brightnessctl) from which this program
 takes inspiration. _*shimmer*_ is also highly customizable, giving you the possibility to adjust
@@ -9,15 +9,16 @@ different aspects of how the brightness is updated
 ## Configuration
 
 > [!CAUTION]
-> Right now support for multiple screens is lacking as there are no options to
-> target specific screens. For set and auto the same brightness value will be applied
-> to every screen. This could lead to problems when using absolute values and auto brightness
+> Right now support for multiple devices is lacking.
+> For auto the same brightness value will be applied
+> to every device. This could lead to problems when using auto brightness
 
 > [!IMPORTANT]
 > Config options are subject to breaking changes as shimmer is in its early stage
 
 This is an example configuration, more details can be found in `config.toml`.
-Only one sensor can be used at a time, while support for multiple screens control is still a WIP
+Only one sensor can be used at a time and its path needs to be specified.
+Devices are found automatically by searching `/sys/class/backlight` and `/sys/class/leds`
 
 ```toml
 [sensor]
@@ -29,15 +30,6 @@ max = 500
 evolution = 0.5
 smoothness = 10
 convexity = 125
-
-[[screen]]
-name = "my-screen"
-path = "/sys/class/backlight/intel_backlight"
-
-
-[[screen]]
-name = "my-other-screen"
-path = "/sys/class/backlight/acpi_video0"
 ```
 
 ## Installation
@@ -59,7 +51,7 @@ It is not recommended to run _*shimmer*_ as sudo. Instead, install the provided 
 
 ## Usage
 
-_*shimmer*_ provides basic functionality through `shimmer get` to print info about the current status of managed screens
+_*shimmer*_ provides basic functionality through `shimmer get` to print info about the current status of managed devices
 and `shimmer set -- <value>` to control the brightness where `value` can be:
 
 - `N` as an integer absolute value
@@ -68,7 +60,7 @@ and `shimmer set -- <value>` to control the brightness where `value` can be:
 
 ### Auto
 
-The main feature of this utility is the ability to control the screen using an ambient light sensor.
+The main feature of this utility is the ability to control the device using an ambient light sensor.
 To access this functionality _*shimmer*_'s daemon must be running.
 Start the daemon with `shimmer daemon`. After this you can use `shimmer auto` to control
 the state of auto brightness

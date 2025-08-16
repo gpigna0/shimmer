@@ -21,11 +21,3 @@ smoothness = 10
 # lower values mean more convexity: brightness varies more with lower ambient light
 # convexity > 0
 convexity = 125
-
-[[screen]]
-name = "intel"                                # a name to identify the screen
-path = "/sys/class/backlight/intel_backlight"
-
-
-# [[screen]] # for non-intel screens
-# path = "/sys/class/backlight/acpi_video0"

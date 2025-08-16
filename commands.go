@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"slices"
 
 	"github.com/gpigna0/shimmer/util"
 	"github.com/urfave/cli/v3"
 )
 
 func cmdGet() *cli.Command {
+	var devs []string
+
 	return &cli.Command{
 		Name:                   "get",
 		Usage:                  "Display info about managed screens",
@@ -20,17 +23,20 @@ func cmdGet() *cli.Command {
 			&cli.BoolFlag{Name: "human-readable", Aliases: []string{"H"}, Usage: "Display the brightness as percentage"},
 			&cli.BoolFlag{Name: "json", Aliases: []string{"j"}, Usage: "Format output as JSON"},
 			&cli.IntFlag{Name: "precision", Aliases: []string{"p"}, Usage: "Number of decimals used to display percentage values. Ignored if -H is not set"},
+			&cli.StringSliceFlag{Name: "device", Aliases: []string{"d"}, Usage: "Name of the device to display", Destination: &devs},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			hr := c.Bool("human-readable")
 
 			fullStats := make([]Stats, 0)
-			for _, s := range util.Conf.Screen {
-				stats, err := get(s, hr, c.Int("precision"))
-				if err != nil {
-					return err
+			for _, d := range util.Conf.Devices {
+				if len(devs) == 0 || slices.Contains(devs, d.Name) {
+					stats, err := get(d, hr, c.Int("precision"))
+					if err != nil {
+						return err
+					}
+					fullStats = append(fullStats, stats)
 				}
-				fullStats = append(fullStats, stats)
 			}
 
 			if err := parse(fullStats, hr, c.Bool("json")); err != nil {
@@ -43,13 +49,21 @@ func cmdGet() *cli.Command {
 }
 
 func cmdSet() *cli.Command {
+	var devs []string
+
 	return &cli.Command{
-		Name:      "set",
-		Usage:     "Set the brightness",
-		ArgsUsage: "Available formats are:\n\tN -> set brightness in absolute value\n\tN% -> set brightness as percentage\n\t±N% Increment or decrement brightness by N percent",
+		Name:  "set",
+		Usage: "Set the brightness",
+		Arguments: []cli.Argument{
+			&cli.StringArg{Name: "value", UsageText: "VALUE\nAvailable formats for VALUE are:\n\tN -> set brightness in absolute value\n\tN% -> set brightness as percentage\n\t±N% Increment or decrement brightness by N percent"},
+		},
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "all", Usage: "set brightness for all devices"},
+			&cli.StringSliceFlag{Name: "device", Aliases: []string{"d"}, Usage: "Name of the device to control", Destination: &devs},
+		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			if !c.Args().Present() {
-				return errors.New("incorrect number of arguments: needs one")
+			if c.StringArg("value") == "" {
+				return errors.New("argument error: you need to specify a value")
 			}
 
 			connOk := true
@@ -65,9 +79,17 @@ func cmdSet() *cli.Command {
 				return errors.New("can't set brightness when auto is active")
 			}
 
-			for _, s := range util.Conf.Screen {
-				if err := set(s, c.Args().First()); err != nil {
-					return err
+			for _, s := range util.Conf.Devices {
+				// TODO: find another way
+				if c.Bool("all") || slices.Contains(devs, s.Name) {
+					if err := set(s, c.StringArg("value")); err != nil {
+						if connOk {
+							if _, err := fmt.Fprintln(conn, "refresh"); err != nil {
+								log.Printf("error while sending to daemon: %v", err)
+							}
+						}
+						return err
+					}
 				}
 			}
 

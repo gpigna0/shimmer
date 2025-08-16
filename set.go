@@ -13,7 +13,7 @@ import (
 
 var rgx = regexp.MustCompile(`^([+-]?)(\d+(?:\.\d+)?)%$|^(\d+)$`)
 
-func set(screen util.Screen, value string) error {
+func set(screen util.Device, value string) error {
 	matches := rgx.FindStringSubmatch(value)
 	if len(matches) == 0 {
 		return errors.New(
@@ -47,7 +47,7 @@ func set(screen util.Screen, value string) error {
 	return nil
 }
 
-func percentBrightness(screen util.Screen, val string) (string, error) {
+func percentBrightness(screen util.Device, val string) (string, error) {
 	v, err := strconv.ParseFloat(val, 64)
 	if err != nil {
 		return "", err
@@ -64,7 +64,7 @@ func percentBrightness(screen util.Screen, val string) (string, error) {
 	return strconv.Itoa(int(v)), nil
 }
 
-func percentIncrement(screen util.Screen, amt string) (string, error) {
+func percentIncrement(screen util.Device, amt string) (string, error) {
 	curr, err := util.ReadFloat64(screen.Path)
 	if err != nil {
 		return "", err

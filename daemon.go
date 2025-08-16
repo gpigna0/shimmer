@@ -68,7 +68,7 @@ func (p publisher) broadcast(msg string) {
 }
 
 func pubBrightness(pubChan chan<- string) {
-	for _, s := range util.Conf.Screen {
+	for _, s := range util.Conf.Devices {
 		v, err := util.ReadFloat64(s.Path)
 		if err != nil {
 			v = -1

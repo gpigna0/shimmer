@@ -3,6 +3,7 @@ package util
 import (
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path"
 
@@ -10,8 +11,8 @@ import (
 )
 
 type Config struct {
-	Sensor Sensor
-	Screen []Screen
+	Sensor  Sensor
+	Devices []Device
 }
 
 type Sensor struct {
@@ -31,10 +32,26 @@ type Params struct {
 	Convexity  float64
 }
 
-type Screen struct {
+type Device struct {
+	Type DevType
 	Name string
 	Path string
 	Max  float64
+}
+
+type DevType uint
+
+const (
+	SCREEN DevType = iota
+	LED
+)
+
+func (d DevType) String() string {
+	if d == 0 {
+		return "screen"
+	} else {
+		return "led"
+	}
 }
 
 var Conf Config
@@ -59,17 +76,45 @@ func InitConfig() error {
 		Conf.Sensor.Path = ""
 	}
 
-	for i, s := range Conf.Screen {
-		m, err := ReadFloat64(path.Join(s.Path, "max_brightness"))
-		if err != nil {
-			return fmt.Errorf("Config error: %w", err)
-		}
-		Conf.Screen[i].Max = m
-		Conf.Screen[i].Path = path.Join(Conf.Screen[i].Path, "brightness")
-	}
-
 	if err := validate(Conf); err != nil {
 		return fmt.Errorf("Config error: %w", err)
+	}
+
+	if err := findDevs(); err != nil {
+		return fmt.Errorf("Config error: %w", err)
+	}
+
+	return nil
+}
+
+func findDevs() error {
+	scr := "/sys/class/backlight"
+	led := "/sys/class/leds"
+	scrDir, err := os.ReadDir(scr)
+	if err != nil {
+		return err
+	}
+	ledDir, err := os.ReadDir(led)
+	if err != nil {
+		return err
+	}
+
+	for _, v := range scrDir {
+		maxBrg, err := ReadFloat64(path.Join(scr, v.Name(), "max_brightness"))
+		if err != nil {
+			log.Printf("error while seaching for devices: %s won't be registered -- %v", v.Name(), err)
+			continue
+		}
+		Conf.Devices = append(Conf.Devices, Device{SCREEN, v.Name(), path.Join(scr, v.Name(), "brightness"), maxBrg})
+	}
+
+	for _, v := range ledDir {
+		maxBrg, err := ReadFloat64(path.Join(led, v.Name(), "max_brightness"))
+		if err != nil {
+			log.Printf("error while seaching for devices: %s won't be registered -- %v", v.Name(), err)
+			continue
+		}
+		Conf.Devices = append(Conf.Devices, Device{LED, v.Name(), path.Join(led, v.Name(), "brightness"), maxBrg})
 	}
 
 	return nil
