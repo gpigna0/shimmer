@@ -51,8 +51,10 @@ It is not recommended to run _*shimmer*_ as sudo. Instead, install the provided 
 
 ## Usage
 
-_*shimmer*_ provides basic functionality through `shimmer get` to print info about the current status of managed devices
-and `shimmer set -- <value>` to control the brightness where `value` can be:
+_*shimmer*_ provides basic functionality through `shimmer get` to print info
+about the current status of managed devices
+and `shimmer set -d dev_name -- <value>` to control dev_name's
+brightness where `value` can be:
 
 - `N` as an integer absolute value
 - `N%` as a percentage of the maximum brightness

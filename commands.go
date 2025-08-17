@@ -53,7 +53,7 @@ func cmdSet() *cli.Command {
 
 	return &cli.Command{
 		Name:  "set",
-		Usage: "Set the brightness",
+		Usage: "Set the brightness. At least one device must be specified with --device or --all",
 		Arguments: []cli.Argument{
 			&cli.StringArg{Name: "value", UsageText: "VALUE\nAvailable formats for VALUE are:\n\tN -> set brightness in absolute value\n\tN% -> set brightness as percentage\n\t±N% Increment or decrement brightness by N percent"},
 		},
@@ -63,7 +63,11 @@ func cmdSet() *cli.Command {
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			if c.StringArg("value") == "" {
-				return errors.New("argument error: you need to specify a value")
+				return errors.New("argument error: you must specify a value")
+			}
+
+			if !c.Bool("all") && len(devs) == 0 {
+				return errors.New("error: you must specify at least one target device")
 			}
 
 			connOk := true
@@ -79,9 +83,10 @@ func cmdSet() *cli.Command {
 				return errors.New("can't set brightness when auto is active")
 			}
 
+			found := 0
 			for _, s := range util.Conf.Devices {
-				// TODO: find another way
 				if c.Bool("all") || slices.Contains(devs, s.Name) {
+					found++
 					if err := set(s, c.StringArg("value")); err != nil {
 						if connOk {
 							if _, err := fmt.Fprintln(conn, "refresh"); err != nil {
@@ -91,6 +96,10 @@ func cmdSet() *cli.Command {
 						return err
 					}
 				}
+			}
+
+			if found != len(devs) {
+				fmt.Printf("%d devices were not found: check if the specified names correspond to managed devices\n", len(devs)-found)
 			}
 
 			if connOk {
