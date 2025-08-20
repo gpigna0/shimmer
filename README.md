@@ -85,7 +85,7 @@ When it is active it will broadcast changes in the state of
 the devices through two types of messages:
 
 - `BRIGHTNESS::dev_name::raw_brightness::percent_brightness`
-- `AUTO::dev_name::active` where `active` is bool
+- `AUTO::dev_name::active` where `active` is either `true` or  `false`
 
 To listen for this massages connect to `$XDG_RUNTIME_DIR/shimmer.sock` and send
 `listen\n`. After doing so, the updates will be sent on the connection with
