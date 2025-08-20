@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"slices"
 
 	"github.com/gpigna0/shimmer/util"
 	"github.com/urfave/cli/v3"
@@ -27,10 +26,18 @@ func cmdGet() *cli.Command {
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			hr := c.Bool("human-readable")
+			if len(devs) == 0 {
+				devs = make([]string, len(util.Conf.Devices))
+				i := 0
+				for k := range util.Conf.Devices {
+					devs[i] = k
+					i++
+				}
+			}
 
 			fullStats := make([]Stats, 0)
-			for _, d := range util.Conf.Devices {
-				if len(devs) == 0 || slices.Contains(devs, d.Name) {
+			for _, devName := range devs {
+				if d, ok := util.Conf.Devices[devName]; ok {
 					stats, err := get(d, hr, c.Int("precision"))
 					if err != nil {
 						return err
@@ -58,15 +65,22 @@ func cmdSet() *cli.Command {
 			&cli.StringArg{Name: "value", UsageText: "VALUE\nAvailable formats for VALUE are:\n\tN -> set brightness in absolute value\n\tN% -> set brightness as percentage\n\t±N% Increment or decrement brightness by N percent"},
 		},
 		Flags: []cli.Flag{
-			&cli.BoolFlag{Name: "all", Usage: "set brightness for all devices"},
+			&cli.BoolFlag{Name: "all", Usage: "Set brightness for all devices"},
 			&cli.StringSliceFlag{Name: "device", Aliases: []string{"d"}, Usage: "Name of the device to control", Destination: &devs},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			if c.StringArg("value") == "" {
 				return errors.New("argument error: you must specify a value")
 			}
-
-			if !c.Bool("all") && len(devs) == 0 {
+			if c.Bool("all") {
+				devs = make([]string, len(util.Conf.Devices))
+				i := 0
+				for k := range util.Conf.Devices {
+					devs[i] = k
+					i++
+				}
+			}
+			if len(devs) == 0 {
 				return errors.New("error: you must specify at least one target device")
 			}
 
@@ -79,33 +93,34 @@ func cmdSet() *cli.Command {
 				defer conn.Close()
 			}
 
-			if connOk && util.CheckAutoWithConn(conn) {
-				return errors.New("can't set brightness when auto is active")
-			}
+			lost := 0
+			for _, devName := range devs {
+				if d, ok := util.Conf.Devices[devName]; ok {
+					if connOk && util.CheckAutoWithConn(devName, conn) {
+						return errors.New("can't set brightness when auto is active")
+					}
 
-			found := 0
-			for _, s := range util.Conf.Devices {
-				if c.Bool("all") || slices.Contains(devs, s.Name) {
-					found++
-					if err := set(s, c.StringArg("value")); err != nil {
+					if err := set(d, c.StringArg("value")); err != nil {
 						if connOk {
-							if _, err := fmt.Fprintln(conn, "refresh"); err != nil {
+							if _, err := fmt.Fprintln(conn, "refresh "+devName); err != nil {
 								log.Printf("error while sending to daemon: %v", err)
 							}
 						}
 						return err
 					}
+
+					if connOk {
+						if _, err := fmt.Fprintln(conn, "refresh "+devName); err != nil {
+							log.Printf("error while sending to daemon: %v", err)
+						}
+					}
+				} else {
+					lost++
 				}
 			}
 
-			if found != len(devs) {
-				fmt.Printf("%d devices were not found: check if the specified names correspond to managed devices\n", len(devs)-found)
-			}
-
-			if connOk {
-				if _, err := fmt.Fprintln(conn, "refresh"); err != nil {
-					log.Printf("error while sending to daemon: %v", err)
-				}
+			if lost != 0 {
+				fmt.Printf("%d devices were not found: check if the specified names correspond to managed devices\n", lost)
 			}
 
 			return nil
@@ -114,14 +129,25 @@ func cmdSet() *cli.Command {
 }
 
 func cmdAuto() *cli.Command {
+	var devs []string
+
 	return &cli.Command{
 		Name:  "auto",
-		Usage: "control the state of automatic brightness",
+		Usage: "Control the state of automatic brightness",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "stop", Aliases: []string{"s"}, Usage: "Stop auto brightness"},
 			&cli.BoolFlag{Name: "toggle", Aliases: []string{"t"}, Usage: "Toggle auto brightness"},
+			&cli.StringSliceFlag{Name: "device", Aliases: []string{"d"}, Usage: "Name of the device to control", Destination: &devs},
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
+			if util.Conf.Sensor.Path == "" {
+				fmt.Println("Auto brightness is disabled. If this is unintentional check that the path to your sensor directory exists")
+				return nil
+			}
+			if len(devs) == 0 {
+				return errors.New("error: you must specify at least one target device")
+			}
+
 			conn, err := net.Dial("unix", util.SOCK)
 			if err != nil {
 				return fmt.Errorf("could not connect to daemon: %w", err)
@@ -129,12 +155,24 @@ func cmdAuto() *cli.Command {
 			defer conn.Close()
 
 			msg := "auto"
-			if c.Bool("stop") || c.Bool("toggle") && util.CheckAutoWithConn(conn) {
+			if c.Bool("stop") {
 				msg += "!"
+			} else if c.Bool("toggle") {
+				msg += "~"
 			}
 
-			if _, err := fmt.Fprintln(conn, msg); err != nil {
-				return fmt.Errorf("error while sending to daemon: %w", err)
+			lost := 0
+			for _, devName := range devs {
+				if _, ok := util.Conf.Devices[devName]; ok {
+					if _, err := fmt.Fprintln(conn, msg+" "+devName); err != nil {
+						return fmt.Errorf("error while sending to daemon: %w", err) // early return
+					}
+				} else {
+					lost++
+				}
+			}
+			if lost != 0 {
+				fmt.Printf("%d devices were not found: check if the specified names correspond to managed devices\n", lost)
 			}
 
 			return nil
@@ -145,7 +183,7 @@ func cmdAuto() *cli.Command {
 func cmdDaemon() *cli.Command {
 	return &cli.Command{
 		Name:  "daemon",
-		Usage: "start the daemon",
+		Usage: "Start the daemon",
 		Action: func(ctx context.Context, c *cli.Command) error {
 			if conn, err := net.Dial("unix", util.SOCK); err == nil {
 				conn.Close()

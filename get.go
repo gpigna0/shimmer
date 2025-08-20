@@ -22,7 +22,7 @@ func get(dev util.Device, humanReadable bool, precision int) (Stats, error) {
 	if err != nil {
 		return Stats{}, err
 	}
-	auto := util.CheckAuto()
+	auto := util.CheckAuto(dev.Name)
 
 	if humanReadable {
 		brg = util.ToPercent(brg, dev.Max, precision)

@@ -33,6 +33,7 @@ func newPublisher() publisher {
 
 	go func() {
 		for v := range pub.pubChan {
+			log.Println(v)
 			go pub.broadcast(v)
 		}
 	}()
@@ -67,18 +68,18 @@ func (p publisher) broadcast(msg string) {
 	}
 }
 
-func pubBrightness(pubChan chan<- string) {
-	for _, s := range util.Conf.Devices {
-		v, err := util.ReadFloat64(s.Path)
+func pubBrightness(devName string, pubChan chan<- string) {
+	if d, ok := util.Conf.Devices[devName]; ok {
+		v, err := util.ReadFloat64(d.Path)
 		if err != nil {
 			v = -1
 		}
 
 		msg := fmt.Sprintf(
 			"BRIGHTNESS::%s::%s::%s",
-			s.Path,
+			devName,
 			strconv.Itoa(int(v)),
-			strconv.FormatFloat(util.ToPercent(v, s.Max, 0), 'f', -1, 64),
+			strconv.FormatFloat(util.ToPercent(v, d.Max, 0), 'f', -1, 64),
 		)
 
 		pubChan <- msg
@@ -101,28 +102,36 @@ LOOP:
 
 			args := strings.Split(s.Text(), " ")
 			switch args[0] {
-			case "auto":
-				if util.Conf.Sensor.Path != "" {
-					auto <- "start"
-				} else {
-					log.Println("Sensor not found. If you didn't disable auto functionality, the sensor path was not found")
-				}
-			case "auto!":
-				auto <- "stop"
 			case "auto?":
-				auto <- "get"
+				auto <- "get " + args[1]
 				msg := <-auto
 				if _, err := fmt.Fprintln(conn, msg); err != nil {
 					log.Println("err:", err)
 				}
+			case "auto~":
+				auto <- "toggle " + args[1]
+				pub.pubChan <- "AUTO::" + args[1] + "::" + <-auto
+			case "auto!":
+				auto <- "stop " + args[1]
+				pub.pubChan <- "AUTO::" + args[1] + "::false"
+			case "auto":
+				auto <- "start " + args[1]
+				pub.pubChan <- "AUTO::" + args[1] + "::true"
 			case "listen":
 				pub.add(conn) // TODO: responsibility of this connection passes to publisher. Should be separate
-				auto <- "publish"
-				pubBrightness(pub.pubChan)
+				for k := range util.Conf.Devices {
+					auto <- "get " + k
+					pub.pubChan <- "AUTO::" + k + "::" + <-auto
+					pubBrightness(k, pub.pubChan)
+				}
 				break LOOP
 			case "refresh":
-				pubBrightness(pub.pubChan)
+				pubBrightness(args[1], pub.pubChan)
 			case "quit":
+				// quitting implies that auto is stopped
+				for k := range util.Conf.Devices {
+					pub.pubChan <- "AUTO::" + k + "::false"
+				}
 				cancel()
 				return true
 			}
@@ -149,7 +158,7 @@ func daemon(ctx context.Context) error {
 	var autoGroup sync.WaitGroup
 	autoChan := make(chan string)
 	autoGroup.Add(1)
-	go func() { auto(pub.pubChan, autoChan); autoGroup.Done() }()
+	go func() { autoHandler(pub.pubChan, autoChan); autoGroup.Done() }()
 
 	for {
 		conn, err := listener.Accept()

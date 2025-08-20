@@ -5,6 +5,7 @@ import (
 	"math"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gpigna0/shimmer/util"
@@ -12,45 +13,41 @@ import (
 
 const TIME = time.Millisecond * 100
 
-func auto(pubChan chan<- string, action chan string) {
-	// WARN: For now auto works only with one screen
-	dir := path.Join(util.Conf.Sensor.Path, "in_illuminance_raw")
-	maxBrg := util.Conf.Devices[0].Max
-	bounds := util.Conf.Sensor.Bounds
-	par := util.Conf.Sensor.Params
-	c := par.Convexity
+type devInfo struct {
+	util.Device
+	old    float64
+	oldBrg int
+}
 
+func autoHandler(pubChan chan<- string, action chan string) {
+	dir := path.Join(util.Conf.Sensor.Path, "in_illuminance_raw")
+	devs := make(map[string]devInfo)
 	tick := time.NewTicker(TIME)
-	tick.Stop()
-	working := false
-	old, err := util.ReadFloat64(dir)
-	if err != nil {
-		log.Println("err:", err)
-	}
-	oldBrg := -1 // with this publish BRIGHTNESS only when it changes
 
 	for {
 		select {
 		case v, ok := <-action:
 			if !ok {
-				pubChan <- "AUTO::false"
 				tick.Stop()
 				return
 			}
-			switch v {
+			args := strings.SplitN(v, " ", 2)
+			switch args[0] {
 			case "stop":
-				tick.Stop()
-				working = false
-				pubChan <- "AUTO::false"
+				delete(devs, args[1])
 			case "start":
-				oldBrg = -1
-				working = true
-				pubChan <- "AUTO::true"
-				tick.Reset(TIME)
-			case "publish":
-				pubChan <- "AUTO::" + strconv.FormatBool(working)
-			default:
-				action <- strconv.FormatBool(working)
+				devs[args[1]] = createDev(args[1])
+			case "toggle":
+				if _, ok := devs[args[1]]; !ok {
+					devs[args[1]] = createDev(args[1])
+					action <- "true"
+				} else {
+					delete(devs, args[1])
+					action <- "false"
+				}
+			case "get":
+				_, ok := devs[args[1]]
+				action <- strconv.FormatBool(ok)
 			}
 		case <-tick.C:
 			curr, err := util.ReadFloat64(dir)
@@ -59,21 +56,33 @@ func auto(pubChan chan<- string, action chan string) {
 				break
 			}
 
-			s := virtualSensor(curr, old, par)
-			v := brightness(s, c, maxBrg, bounds)
-			val := strconv.Itoa(v)
+			for k, d := range devs {
+				s := virtualSensor(curr, d.old, util.Conf.Sensor.Params)
+				v := brightness(s, util.Conf.Sensor.Params.Convexity, d.Max, util.Conf.Sensor.Bounds)
+				val := strconv.Itoa(v)
 
-			if err := set(util.Conf.Devices[0], val); err != nil {
-				log.Println("error setting brightness:", err)
-			}
+				if err := set(d.Device, val); err != nil {
+					log.Println("error setting brightness:", err)
+				}
 
-			if v != oldBrg {
-				pubBrightness(pubChan)
+				if v != d.oldBrg {
+					pubBrightness(k, pubChan)
+				}
+				d.old = s
+				d.oldBrg = v
+				devs[k] = d
 			}
-			old = s
-			oldBrg = v
 		}
 	}
+}
+
+func createDev(devName string) devInfo {
+	d := util.Conf.Devices[devName] // existence of the device should already be checked
+	init, err := util.ReadFloat64(path.Join(util.Conf.Sensor.Path, "in_illuminance_raw"))
+	if err != nil {
+		log.Println("err:", err)
+	}
+	return devInfo{d, init, -1}
 }
 
 func virtualSensor(curr, old float64, params util.Params) float64 {

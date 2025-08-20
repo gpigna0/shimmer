@@ -15,8 +15,8 @@ import (
 
 var SOCK = path.Join(os.Getenv("XDG_RUNTIME_DIR"), "shimmer.sock")
 
-func CheckAutoWithConn(c net.Conn) bool {
-	if _, err := fmt.Fprintln(c, "auto?"); err != nil {
+func CheckAutoWithConn(devName string, c net.Conn) bool {
+	if _, err := fmt.Fprintln(c, "auto? "+devName); err != nil {
 		log.Println("err:", err)
 		return false
 	}
@@ -26,7 +26,7 @@ func CheckAutoWithConn(c net.Conn) bool {
 	return s.Text() == "true"
 }
 
-func CheckAuto() bool {
+func CheckAuto(devName string) bool {
 	conn, err := net.Dial("unix", SOCK)
 	if err != nil {
 		// daemon assumed inactive
@@ -34,7 +34,7 @@ func CheckAuto() bool {
 	}
 	defer conn.Close()
 
-	return CheckAutoWithConn(conn)
+	return CheckAutoWithConn(devName, conn)
 }
 
 func ReadFloat64(pth string) (float64, error) {

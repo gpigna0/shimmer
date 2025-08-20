@@ -12,7 +12,7 @@ import (
 
 type Config struct {
 	Sensor  Sensor
-	Devices []Device
+	Devices map[string]Device
 }
 
 type Sensor struct {
@@ -68,6 +68,7 @@ func InitConfig() error {
 	if _, err := toml.DecodeFile(configPath, &Conf); err != nil {
 		return fmt.Errorf("Config error: %w", err)
 	}
+	Conf.Devices = make(map[string]Device)
 
 	ex, err := PathExists(Conf.Sensor.Path)
 	if err != nil {
@@ -105,7 +106,7 @@ func findDevs() error {
 			log.Printf("error while seaching for devices: %s won't be registered -- %v", v.Name(), err)
 			continue
 		}
-		Conf.Devices = append(Conf.Devices, Device{SCREEN, v.Name(), path.Join(scr, v.Name(), "brightness"), maxBrg})
+		Conf.Devices[v.Name()] = Device{SCREEN, v.Name(), path.Join(scr, v.Name(), "brightness"), maxBrg}
 	}
 
 	for _, v := range ledDir {
@@ -114,7 +115,7 @@ func findDevs() error {
 			log.Printf("error while seaching for devices: %s won't be registered -- %v", v.Name(), err)
 			continue
 		}
-		Conf.Devices = append(Conf.Devices, Device{LED, v.Name(), path.Join(led, v.Name(), "brightness"), maxBrg})
+		Conf.Devices[v.Name()] = Device{SCREEN, v.Name(), path.Join(led, v.Name(), "brightness"), maxBrg}
 	}
 
 	return nil

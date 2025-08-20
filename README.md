@@ -8,11 +8,6 @@ different aspects of how the brightness is updated
 
 ## Configuration
 
-> [!CAUTION]
-> Right now support for multiple devices is lacking.
-> For auto the same brightness value will be applied
-> to every device. This could lead to problems when using auto brightness
-
 > [!IMPORTANT]
 > Config options are subject to breaking changes as shimmer is in its early stage
 
@@ -47,35 +42,51 @@ Alternatively download the pre-built binary and use that directly
 
 ## Permissions
 
-It is not recommended to run _*shimmer*_ as sudo. Instead, install the provided udev rules and add your user to the video group
+It is not recommended to run _*shimmer*_ as sudo. Instead, install the provided udev rules and add your user to the `video` group
 
 ## Usage
 
-_*shimmer*_ provides basic functionality through `shimmer get` to print info
-about the current status of managed devices
-and `shimmer set -d dev_name -- <value>` to control dev_name's
-brightness where `value` can be:
+The core features are retrieving info about controlled devices, setting their brightness or adjusting it automatically. Here are described the most relevant commands:
+for the complete list of commands and more details about their usage
+call `shimmer [command] --help`
+
+### Get
+
+`shimmer get` prints info about the current status of managed devices.
+
+### Set
+
+> [!WARNING]
+> Some devices are multicolor but `set` (and `auto`) ignore that, resulting
+> in unintended colors. Support for multicolor devices is planned in the future
+
+`shimmer set` to controls a device's brightness which can be expressed in different formats:
 
 - `N` as an integer absolute value
 - `N%` as a percentage of the maximum brightness
 - `+-N%` as a delta from the current brightness
 
+To use this command you must specify a set of target devices with one or more
+`--device <dev_name>` or `--all`.
+
 ### Auto
 
-The main feature of this utility is the ability to control the device using an ambient light sensor.
-To access this functionality _*shimmer*_'s daemon must be running.
-Start the daemon with `shimmer daemon`. After this you can use `shimmer auto` to control
-the state of auto brightness
-
-For further help on commands and options use `shimmer [command] --help`
+`shimmer auto` controls the state of automatic brightness. In order for auto to
+work _*shimmer's*_ daemon, which can be started with `shimmer daemon`, must be running.
+`auto` uses the sensor specified in the config. If you don't have a sensor simply
+put `path = ""` to disable `auto`.  
+Like in the case of `set` auto requires at least one device to be targeted
+with `--device <dev_name>`.
 
 ## IPC
 
 The daemon can accept connections to `$XDG_RUNTIME_DIR/shimmer.sock`.
-While it is technically possible to send compatible commands to the daemon,
-the only one intended for external use is `listen`.
-Other commands sent will result in undefined behaviour.  
-After sending `listen`, the daemon will send two message types when state changes:
+When it is active it will broadcast changes in the state of
+the devices through two types of messages:
 
-- `BRIGHTNESS::/path/to/device::raw_brightness::percent_brightness`
-- `AUTO::active` where `active` is bool
+- `BRIGHTNESS::dev_name::raw_brightness::percent_brightness`
+- `AUTO::dev_name::active` where `active` is bool
+
+To listen for this massages connect to `$XDG_RUNTIME_DIR/shimmer.sock` and send
+`listen\n`. After doing so, the updates will be sent on the connection with
+one message per line
