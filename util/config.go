@@ -27,7 +27,6 @@ type Bounds struct {
 }
 
 type Params struct {
-	Evolution  float64
 	Smoothness float64
 	Convexity  float64
 }
@@ -129,10 +128,8 @@ func validate(c Config) error {
 		msg = "sensor.bounds.max is less than sensor.bounds.min"
 	case s.Bounds.Min < 0 || s.Bounds.Max < 0:
 		msg = "both sensor.bounds must be >= 0"
-	case s.Params.Evolution <= 0 || s.Params.Evolution > 1:
-		msg = "sensor.params.evolution must be between 0 and 1, 0 excluded"
-	case s.Params.Smoothness <= 0:
-		msg = "sensor.params.smoothness must be > 0"
+	case s.Params.Smoothness < 1:
+		msg = "sensor.params.smoothness must be >= 1"
 	case s.Params.Convexity <= 0:
 		msg = "sensor.params.convexity must be > 0"
 	}

@@ -61,11 +61,10 @@ func autoHandler(pubChan chan<- string, action chan string) {
 				v := brightness(s, util.Conf.Sensor.Params.Convexity, d.Max, util.Conf.Sensor.Bounds)
 				val := strconv.Itoa(v)
 
-				if err := set(d.Device, val); err != nil {
-					log.Println("error setting brightness:", err)
-				}
-
 				if v != d.oldBrg {
+					if err := set(d.Device, val); err != nil {
+						log.Println("error setting brightness:", err)
+					}
 					pubBrightness(k, pubChan)
 				}
 				d.old = s
@@ -87,7 +86,7 @@ func createDev(devName string) devInfo {
 
 func virtualSensor(curr, old float64, params util.Params) float64 {
 	delta := math.Abs(curr - old)
-	weight := params.Evolution / (1 + delta/params.Smoothness)
+	weight := (1 + delta) / (params.Smoothness*delta + 1)
 	return weight*curr + (1-weight)*old
 }
 
@@ -95,9 +94,9 @@ func brightness(sensor, convexity, maxBrg float64, bounds util.Bounds) int {
 	xM := bounds.Max / (bounds.Max + convexity)
 	xm := bounds.Min / (bounds.Min + convexity)
 
-	a := (maxBrg + 1) / (xM - xm)
-	b := 1 - a*xm
-	curve := a * sensor / (sensor + convexity)
+	scale := (maxBrg + 1) / (xM - xm)
+	clamp := 1 - scale*xm
+	curve := scale * sensor / (sensor + convexity)
 
-	return int(math.Round(curve + b))
+	return int(curve + clamp)
 }

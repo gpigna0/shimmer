@@ -9,13 +9,9 @@ path = "/sys/bus/iio/devices/iio:device0"
 min = 0
 max = 500
 [sensor.params]
-# how close the brightness follows sensor changes
-# higher values mean closer following
-# 0 < evolution <= 1
-evolution = 0.5
-# reduces the influence of outlier readings
-# lower values mean more effective reduction
-# smoothness > 0
+# controls how fast the brightness is updated. This parameter
+# has more influence for bigger changes in ambient light
+# smoothness >= 1
 smoothness = 10
 # how convex is the function mapping sensor readings to brightness values
 # lower values mean more convexity: brightness varies more with lower ambient light
